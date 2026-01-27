@@ -1,4 +1,4 @@
-# FluxCD Platform Commander
+# FluxCD Platform cmdr
 
 A clean setup for running FluxCD against a k3d cluster.
 
