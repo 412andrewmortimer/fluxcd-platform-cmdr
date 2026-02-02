@@ -10,6 +10,8 @@ metadata:
   name: cert-manager
   namespace: flux-system
 spec:
+  dependsOn:
+    - name: kube-prometheus-stack
   interval: 30m
   chart:
     spec:
@@ -22,21 +24,20 @@ spec:
       interval: 12h
   targetNamespace: cert-manager
   install:
-    crds: Create
     createNamespace: true
     remediation:
       retries: 3
   upgrade:
-    crds: CreateReplace
     remediation:
       retries: 3
   values:
     # ============================================================================
     # CRD Management
     # ============================================================================
-    # Flux manages CRDs via install.crds/upgrade.crds
+    installCRDs: true  # Let Helm install CRDs
+    
     crds:
-      enabled: false  # Let Flux handle CRD installation
+      enabled: true   # Ensure CRDs are included
       keep: true      # Prevent CRDs from being deleted on uninstall
 
     # ============================================================================
@@ -143,10 +144,9 @@ spec:
     prometheus:
       enabled: true
       servicemonitor:
-        enabled: false  # Enable if using Prometheus Operator
-        # prometheusInstance: default
-        # interval: 60s
-        # scrapeTimeout: 30s
+        enabled: true  # Enabled for Prometheus Operator integration
+        interval: 60s
+        scrapeTimeout: 30s
     
     # ============================================================================
     # Startup API Check (validates webhook endpoints)

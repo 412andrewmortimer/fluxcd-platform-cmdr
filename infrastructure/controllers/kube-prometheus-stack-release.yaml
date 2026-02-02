@@ -1,0 +1,218 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kube-prometheus-stack
+  namespace: flux-system
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: kube-prometheus-stack
+      version: "65.x"  # Latest stable version
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+        namespace: flux-system
+      interval: 12h
+  targetNamespace: monitoring
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    # ============================================================================
+    # CRD Management
+    # ============================================================================
+    crds:
+      enabled: true  # Chart must install its own CRDs (not in crds/ dir)
+
+    # ============================================================================
+    # Prometheus Operator
+    # ============================================================================
+    prometheusOperator:
+      enabled: true
+      
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          memory: 256Mi
+      
+      # Security contexts
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      
+      containerSecurityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - ALL
+        readOnlyRootFilesystem: true
+
+    # ============================================================================
+    # Prometheus
+    # ============================================================================
+    prometheus:
+      enabled: true
+      
+      prometheusSpec:
+        replicas: 1  # Bare-bones: single replica
+        
+        retention: 7d  # Keep metrics for 7 days
+        retentionSize: "5GB"
+        
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            memory: 2Gi
+        
+        # Storage - uses emptyDir by default (ephemeral)
+        # For production, configure persistent storage:
+        # storageSpec:
+        #   volumeClaimTemplate:
+        #     spec:
+        #       accessModes: ["ReadWriteOnce"]
+        #       resources:
+        #         requests:
+        #           storage: 10Gi
+        
+        # Service monitor selector - scrape all ServiceMonitors
+        serviceMonitorSelectorNilUsesHelmValues: false
+        podMonitorSelectorNilUsesHelmValues: false
+        
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          fsGroup: 2000
+          seccompProfile:
+            type: RuntimeDefault
+
+    # ============================================================================
+    # Alertmanager
+    # ============================================================================
+    alertmanager:
+      enabled: true
+      
+      alertmanagerSpec:
+        replicas: 1  # Bare-bones: single replica
+        
+        retention: 120h  # Keep alerts for 5 days
+        
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            memory: 128Mi
+        
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          fsGroup: 2000
+          seccompProfile:
+            type: RuntimeDefault
+
+    # ============================================================================
+    # Grafana
+    # ============================================================================
+    grafana:
+      enabled: true
+      
+      replicas: 1
+      
+      # Default credentials (CHANGE IN PRODUCTION!)
+      adminPassword: admin
+      
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          memory: 256Mi
+      
+      # Datasources - auto-configure Prometheus
+      datasources:
+        datasources.yaml:
+          apiVersion: 1
+          datasources:
+          - name: Prometheus
+            type: prometheus
+            url: http://kube-prometheus-stack-prometheus.monitoring.svc:9090
+            access: proxy
+            isDefault: true
+      
+      # Security
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 472
+        fsGroup: 472
+        seccompProfile:
+          type: RuntimeDefault
+      
+      containerSecurityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - ALL
+        readOnlyRootFilesystem: false  # Grafana needs write access
+
+    # ============================================================================
+    # Default Scrapers
+    # ============================================================================
+    # Kube-state-metrics - Kubernetes object metrics
+    kubeStateMetrics:
+      enabled: true
+    
+    # Node-exporter - Node hardware/OS metrics
+    nodeExporter:
+      enabled: true
+    
+    # Kubelet metrics
+    kubelet:
+      enabled: true
+    
+    # CoreDNS metrics
+    coreDns:
+      enabled: true
+    
+    # ============================================================================
+    # Service Monitors - What to Scrape
+    # ============================================================================
+    # Enable default service monitors for k8s components
+    defaultRules:
+      create: true
+      rules:
+        alertmanager: true
+        etcd: false  # k3d doesn't expose etcd metrics
+        general: true
+        k8s: true
+        kubeApiserver: true
+        kubeApiserverAvailability: true
+        kubeApiserverSlos: true
+        kubelet: true
+        kubePrometheusGeneral: true
+        kubePrometheusNodeRecording: true
+        kubernetesApps: true
+        kubernetesResources: true
+        kubernetesStorage: true
+        kubernetesSystem: true
+        kubeScheduler: false  # k3d doesn't expose scheduler metrics
+        kubeStateMetrics: true
+        network: true
+        node: true
+        prometheus: true
+        prometheusOperator: true
