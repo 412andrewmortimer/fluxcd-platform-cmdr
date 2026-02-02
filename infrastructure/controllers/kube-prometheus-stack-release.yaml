@@ -144,16 +144,9 @@ spec:
         limits:
           memory: 256Mi
       
-      # Datasources - auto-configure Prometheus
-      datasources:
-        datasources.yaml:
-          apiVersion: 1
-          datasources:
-          - name: Prometheus
-            type: prometheus
-            url: http://kube-prometheus-stack-prometheus.monitoring.svc:9090
-            access: proxy
-            isDefault: true
+      # Datasources are auto-configured by the chart (default behavior)
+      # The chart automatically creates a Prometheus datasource pointing to:
+      # http://kube-prometheus-stack-prometheus.monitoring.svc:9090
       
       # Security
       securityContext:
