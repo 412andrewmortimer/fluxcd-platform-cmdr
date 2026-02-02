@@ -29,6 +29,10 @@ spec:
       namespace: cert-manager
     - apiVersion: apps/v1
       kind: Deployment
+      name: kube-prometheus-stack-operator
+      namespace: monitoring
+    - apiVersion: apps/v1
+      kind: Deployment
       name: external-secrets
       namespace: external-secrets-system
     - apiVersion: apps/v1
