@@ -1,9 +1,12 @@
-.PHONY: help up down status check bootstrap clean
+.PHONY: help provision up down status check bootstrap clean reconcile
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-up: ## Create k3d cluster and install FluxCD
+provision: ## Complete provisioning: cluster + Flux + all infrastructure
+	./provision-cluster.sh
+
+up: ## Create k3d cluster and install FluxCD only (use 'provision' for full setup)
 	./setup-cluster.sh
 
 down: ## Delete k3d cluster
@@ -35,7 +38,16 @@ logs: ## Tail Flux logs
 	flux logs --all-namespaces --follow
 
 reconcile: ## Force reconcile all Flux resources
-	flux reconcile source git flux-system
-	flux reconcile kustomization flux-system
+	@echo "🔄 Reconciling infrastructure-controllers..."
+	kubectl apply -k infrastructure/controllers
+	@echo ""
+	@echo "🔄 Reconciling infrastructure-configs..."
+	kubectl apply -k infrastructure/configs
+
+monitoring: ## Access monitoring stack (Grafana, Prometheus, AlertManager)
+	./access-monitoring.sh
+
+traffic: ## Generate metrics traffic to sample app
+	./generate-metrics-traffic.sh
 
 clean: down ## Alias for down

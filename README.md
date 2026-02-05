@@ -19,68 +19,126 @@ brew install fluxcd/tap/flux
 
 ## Quick Start
 
-### 1. Create the Cluster
+### One-Command Provisioning
+
+The easiest way to get started (local development):
 
 ```bash
-chmod +x setup-cluster.sh teardown-cluster.sh
-./setup-cluster.sh
+make provision
+# Or directly:
+./provision-cluster.sh
 ```
 
 This will:
 - Create a k3d cluster with 1 server and 2 agent nodes
+- Install FluxCD components
+- Apply infrastructure manifests directly (using `kubectl apply -k`)
+- Wait for Helm releases to be deployed
+- Display status and next steps
+
+**Note:** For local development, this applies manifests directly with kubectl.
+For production with Git integration, see the "Bootstrap from Git" section below.
+
+**That's it!** In 5-10 minutes you'll have a complete platform running.
+
+### Manual Setup (Step by Step)
+
+If you prefer more control:
+
+#### 1. Create the Cluster
+
+```bash
+make up
+# Or:
+./setup-cluster.sh
+```
+
+This will:
+- Create a k3d cluster
 - Expose ports 8080 (HTTP) and 8443 (HTTPS)
 - Install FluxCD components
 - Configure kubectl context
 
-### 2. Bootstrap FluxCD with Git
+#### 2. Deploy Infrastructure with Flux
 
-#### Option A: GitHub
+```bash
+make reconcile
+# Or:
+kubectl apply -k infrastructure/controllers
+kubectl apply -k infrastructure/configs
+```
+
+This deploys:
+- Cert-manager
+- Kube-Prometheus-Stack (Grafana, Prometheus, AlertManager)
+- External Secrets Operator
+- Sample app with metrics
+
+### Bootstrap from Git (Production)
+
+For production environments with real Git integration:
 
 ```bash
 export GITHUB_TOKEN=<your-token>
+
 flux bootstrap github \
   --owner=<your-org> \
-  --repository=<your-repo> \
+  --repository=fluxcd-platform-cmdr \
   --branch=main \
   --path=clusters/fluxcd-platform \
   --personal
 ```
 
-#### Option B: GitLab
+This will:
+- Create a deploy key in your GitHub repo
+- Install Flux in the cluster
+- Create a GitRepository pointing to your repo
+- Apply all Kustomizations from `clusters/fluxcd-platform/`
+- Commit Flux manifests back to the repo
+- Enable automatic reconciliation from Git
 
-```bash
-export GITLAB_TOKEN=<your-token>
-flux bootstrap gitlab \
-  --owner=<your-org> \
-  --repository=<your-repo> \
-  --branch=main \
-  --path=clusters/fluxcd-platform
-```
-
-#### Option C: Local Development (without Git)
-
-For quick testing without Git integration:
-
-```bash
-# Create a local structure
-mkdir -p clusters/fluxcd-platform/apps
-
-# Apply manifests directly
-kubectl apply -k clusters/fluxcd-platform
-```
+See [Flux Bootstrap Guide](https://fluxcd.io/flux/installation/bootstrap/) for more options.
 
 ### 3. Verify Installation
 
 ```bash
-# Check Flux components
+# Check all components
+make status
+
+# Check Flux specifically
 flux check
 
-# View Flux pods
-kubectl -n flux-system get pods
+# View all Flux resources
+flux get all
 
 # Watch reconciliation
-flux get sources git
 flux get kustomizations
+flux get helmreleases
+```
+
+### 4. Access Monitoring Stack
+
+```bash
+make monitoring
+# Or:
+./access-monitoring.sh
+```
+
+Choose option 4 to access all services:
+- **Grafana**: http://localhost:3000 (admin/admin)
+- **Prometheus**: http://localhost:9090
+- **AlertManager**: http://localhost:9093
+
+See **MONITORING-QUICKSTART.md** for a detailed guide.
+
+### 5. Generate Traffic (Optional)
+
+To see real metrics in action:
+
+```bash
+make traffic
+# Or:
+./generate-metrics-traffic.sh
 ```
 
 ## Cluster Configuration
@@ -112,61 +170,99 @@ The `k3d-config.yaml` defines:
 
 ## Common Operations
 
-### Deploy an Application
+### Check Status
 
 ```bash
-# Create a GitRepository source
-flux create source git myapp \
-  --url=https://github.com/org/repo \
-  --branch=main \
-  --interval=1m
-
-# Create a Kustomization
-flux create kustomization myapp \
-  --source=myapp \
-  --path="./deploy" \
-  --prune=true \
-  --interval=5m
+make status
 ```
 
-### View Logs
+### Access Services
 
 ```bash
-# Flux logs
-flux logs --all-namespaces
+# Monitoring stack
+make monitoring
 
-# Specific controller
-kubectl -n flux-system logs deployment/source-controller
+# Generate sample traffic
+make traffic
 ```
 
 ### Force Reconciliation
 
 ```bash
-flux reconcile source git flux-system
-flux reconcile kustomization flux-system
+make reconcile
 ```
 
-### Suspend/Resume
+### View Logs
 
 ```bash
-flux suspend kustomization myapp
-flux resume kustomization myapp
+make logs
+
+# Or specific controller
+kubectl -n flux-system logs deployment/source-controller -f
 ```
 
 ## Cleanup
 
 ```bash
+make down
+# Or:
 ./teardown-cluster.sh
 ```
+
+## What's Deployed
+
+After running `make provision`, you get:
+
+### Infrastructure Controllers
+- **Cert-Manager** - Automated TLS certificate management
+- **Kube-Prometheus-Stack** - Complete monitoring solution
+  - Prometheus - Metrics collection and alerting
+  - Grafana - Metrics visualization and dashboards
+  - AlertManager - Alert routing and management
+  - Node Exporter - Hardware and OS metrics
+  - Kube-State-Metrics - Kubernetes object metrics
+- **External Secrets Operator** - Sync secrets from external stores
+
+### Infrastructure Configs
+- **Sample App** - Demo application with Prometheus metrics
+- **ServiceMonitors** - Automatic metrics scraping configuration
+- **PrometheusRules** - Sample alerts
+
+### Flux Components
+- **Source Controller** - Git repository synchronization
+- **Kustomize Controller** - Applies Kustomization resources
+- **Helm Controller** - Manages Helm releases
+- **Notification Controller** - Event forwarding
 
 ## Troubleshooting
 
 ### Flux not reconciling
 
 ```bash
+# Check Flux status
 flux check
+
+# View all resources
 flux get all
+
+# Check events
 kubectl -n flux-system get events --sort-by='.lastTimestamp'
+
+# Manually trigger reconciliation
+make reconcile
+```
+
+### Monitoring stack not ready
+
+```bash
+# Check pods
+kubectl get pods -n monitoring
+
+# Check HelmRelease status
+flux get helmreleases -A
+
+# View Helm controller logs
+kubectl -n flux-system logs deployment/helm-controller -f
 ```
 
 ### Access cluster services

@@ -148,6 +148,22 @@ spec:
       # The chart automatically creates a Prometheus datasource pointing to:
       # http://kube-prometheus-stack-prometheus.monitoring.svc:9090
       
+      # Enable additional dashboards
+      defaultDashboardsEnabled: true
+      defaultDashboardsTimezone: UTC
+      
+      # Sidecar for dashboard provisioning
+      sidecar:
+        dashboards:
+          enabled: true
+          defaultFolderName: "General"
+          searchNamespace: ALL
+          provider:
+            foldersFromFilesStructure: true
+        datasources:
+          enabled: true
+          defaultDatasourceEnabled: true
+      
       # Security
       securityContext:
         runAsNonRoot: true
@@ -173,13 +189,32 @@ spec:
     # Node-exporter - Node hardware/OS metrics
     nodeExporter:
       enabled: true
+      hostNetwork: true
+      hostPID: true
     
     # Kubelet metrics
     kubelet:
       enabled: true
+      serviceMonitor:
+        https: true  # Use HTTPS for kubelet
     
     # CoreDNS metrics
     coreDns:
+      enabled: true
+      service:
+        port: 9153
+        targetPort: 9153
+    
+    # Kube-controller-manager (k3d limitation: not exposed by default)
+    kubeControllerManager:
+      enabled: false
+    
+    # Kube-scheduler (k3d limitation: not exposed by default)  
+    kubeScheduler:
+      enabled: false
+    
+    # Kube-proxy
+    kubeProxy:
       enabled: true
     
     # ============================================================================

@@ -1,0 +1,109 @@
+---
+# Sample application namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sample-app
+---
+# Sample application that exposes Prometheus metrics
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sample-metrics-app
+  namespace: sample-app
+  labels:
+    app: sample-metrics-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: sample-metrics-app
+  template:
+    metadata:
+      labels:
+        app: sample-metrics-app
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: app
+        image: quay.io/brancz/prometheus-example-app:v0.5.0
+        ports:
+        - containerPort: 8080
+          name: metrics
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 50m
+            memory: 64Mi
+---
+# Service for the sample app
+apiVersion: v1
+kind: Service
+metadata:
+  name: sample-metrics-app
+  namespace: sample-app
+  labels:
+    app: sample-metrics-app
+spec:
+  selector:
+    app: sample-metrics-app
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: metrics
+---
+# ServiceMonitor to tell Prometheus to scrape this app
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: sample-metrics-app
+  namespace: sample-app
+  labels:
+    app: sample-metrics-app
+spec:
+  selector:
+    matchLabels:
+      app: sample-metrics-app
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+---
+# PrometheusRule with sample alerts
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: sample-app-alerts
+  namespace: sample-app
+  labels:
+    prometheus: kube-prometheus-stack
+    role: alert-rules
+spec:
+  groups:
+  - name: sample-app
+    interval: 30s
+    rules:
+    - alert: SampleAppHighRequestRate
+      expr: rate(http_requests_total{namespace="sample-app"}[5m]) > 10
+      for: 2m
+      labels:
+        severity: warning
+        component: sample-app
+      annotations:
+        summary: "High request rate detected on sample app"
+        description: "Sample app in namespace {{ $labels.namespace }} is receiving {{ $value }} requests/sec"
+    
+    - alert: SampleAppDown
+      expr: up{job="sample-metrics-app"} == 0
+      for: 1m
+      labels:
+        severity: critical
+        component: sample-app
+      annotations:
+        summary: "Sample app is down"
+        description: "Sample metrics app instance {{ $labels.instance }} is down"

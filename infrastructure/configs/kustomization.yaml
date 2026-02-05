@@ -4,4 +4,7 @@ kind: Kustomization
 resources:
   - cert-manager-issuers.yaml
   - external-secrets-stores.yaml
-  - external-secrets-examples.yaml
+  # Commented out - these are examples only, uncomment when you have Azure Key Vault configured
+  # - external-secrets-examples.yaml
+  - sample-app-with-metrics.yaml
+  - grafana-dashboard-sample-app.yaml
